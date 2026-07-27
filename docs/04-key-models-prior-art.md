@@ -214,11 +214,18 @@ private one" continuum.
 
 Reasons, in order of weight:
 
-1. **It is already specified, shipped, and cross-validated here.** `NIP-52E.md`
-   is a written spec; `calendar-sdk` implements it; `test/interop.test.ts` guards
-   it against a second independent implementation. `crypto/viewKey.ts`,
-   `crypto/nip44.ts`, and `crypto/nip59.ts` move over essentially unchanged. Every
-   other option means writing and debugging new crypto plumbing.
+1. **It is already specified and implemented here.** `NIP-52E.md` is a written
+   spec, and `calendar-sdk` implements it. `crypto/viewKey.ts`, `crypto/nip44.ts`,
+   and `crypto/nip59.ts` — all three committed on `origin/calendar-sdk` and
+   exercised by the committed `test/sdk.test.ts`, which drives two SDK users
+   against an in-memory relay with real NIP-44/NIP-59 and no mocked crypto — move
+   over essentially unchanged. Every other option means writing and debugging new
+   crypto plumbing.
+
+   Scoped honestly: `test/interop.test.ts`, the cross-app guard, was **not
+   committed** when this was written (doc 08 has the full committed/uncommitted
+   split), so "cross-validated against a second implementation" is a claim about
+   local work, not about anything in the repository's history.
 
 2. **Attribution matters more for Kanban than for spreadsheets.** "Who moved this
    card, who wrote this comment, who is this assigned to" is the substance of the

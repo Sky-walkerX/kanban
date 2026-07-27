@@ -32,13 +32,26 @@ Battle-tested, cross-validated against a second implementation, shipping today.
 | `NostrRuntime` + `SimplePoolRuntime` + `LocalRelayRuntime` | `calendar-sdk/src/runtime/` | |
 | Signer contract + `toXSigner()` prototype-binding adapter | `calendar-sdk/src/contracts.ts`, `adapters/signer.ts` | One signer object satisfies all formstr SDKs |
 | Codec-is-pure / services-do-I/O layering | `calendar-sdk` | |
-| Interop-by-ported-parsers test strategy | `calendar-sdk/test/interop.test.ts` | |
+| Interop-by-ported-parsers test strategy | `calendar-sdk/test/interop.test.ts` | ⚠️ uncommitted — see caveat below |
 | `tsup` + `vitest` + optional-peer subpath packaging | `calendar-sdk` | |
 
 Also already proven, in **formstr-forms** rather than the calendar: delivering
 access keys by **gift wrap instead of plaintext `p` tags** (`accessControl.ts`),
 which is what keeps membership invisible. Doc 05 §6 inherits that idea, not the
 code.
+
+> **Caveat on "proven" — checked 2026-07-28.** Not all of the calendar-sdk files
+> cited above are committed. On `origin/calendar-sdk` the committed set is
+> `crypto/viewKey.ts`, `crypto/nip44.ts`, `crypto/nip59.ts`, `discovery/dedupe.ts`,
+> `runtime/pool.ts`, `test/helpers.ts`, `test/sdk.test.ts`. Uncommitted local work
+> at the time of writing: `test/interop.test.ts`, `test/booking.test.ts`,
+> `src/runtime/localRelay.ts`, `src/local-relay.ts`, `src/codec/schedulingPage.ts`,
+> `src/codec/slots.ts`. `packages/calendar-sdk` does not exist on `origin/main` at
+> all.
+>
+> The doc 04 decision rests entirely on the committed set, so it stands. But the
+> interop-by-ported-parsers **strategy** is a good idea we are adopting, not a
+> technique with production mileage — Plan 1 Task 10 is its first committed use.
 
 ---
 
