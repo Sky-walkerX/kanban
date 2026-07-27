@@ -420,32 +420,23 @@ import type { NostrRuntime, SubscriptionHandle } from "../contracts";
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-/** Zero-config `NostrRuntime` over nostr-tools' SimplePool. */
+/**
+ * Zero-config `NostrRuntime` over nostr-tools' SimplePool.
+ *
+ * Note on `subscribe`: the runtime contract takes `Filter[]` (shared with
+ * `@formstr/calendar-sdk`), but `SimplePool.subscribeMany` accepts exactly one
+ * filter as of nostr-tools 2.23. We fan out to one subscription per filter and
+ * join them behind a single handle, reporting EOSE once the last one drains.
+ */
 export class SimplePoolRuntime implements NostrRuntime {
   private readonly pool = new SimplePool();
-  /** Every relay we have ever touched, so `dispose` can actually close them. */
-  private readonly touched = new Set<string>();
 
-  private track(relays: string[]): string[] {
-    for (const relay of relays) this.touched.add(relay);
-    return relays;
-  }
-
-  async querySync(relays: string[], filter: Filter, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Event[]> {
-    this.track(relays);
-    const seen = new Map<string, Event>();
-    return new Promise((resolve) => {
-      const finish = () => {
-        clearTimeout(timer);
-        sub.close();
-        resolve([...seen.values()]);
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      const sub = this.pool.subscribeMany(relays, [filter], {
-        onevent: (event) => seen.set(event.id, event),
-        oneose: finish,
-      });
-    });
+  async querySync(
+    relays: string[],
+    filter: Filter,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  ): Promise<Event[]> {
+    return this.pool.querySync(relays, filter, { maxWait: timeoutMs });
   }
 
   subscribe(
@@ -453,25 +444,36 @@ export class SimplePoolRuntime implements NostrRuntime {
     filters: Filter[],
     options: { onEvent?: (event: Event) => void; onEose?: () => void } = {},
   ): SubscriptionHandle {
-    const sub = this.pool.subscribeMany(this.track(relays), filters, {
-      onevent: (event) => options.onEvent?.(event),
-      oneose: () => options.onEose?.(),
-    });
-    return { unsub: () => sub.close() };
+    let pending = filters.length;
+    const subs = filters.map((filter) =>
+      this.pool.subscribeMany(relays, filter, {
+        onevent: (event) => options.onEvent?.(event),
+        oneose: () => {
+          pending -= 1;
+          if (pending === 0) options.onEose?.();
+        },
+      }),
+    );
+
+    if (filters.length === 0) options.onEose?.();
+
+    return {
+      unsub: () => {
+        for (const sub of subs) sub.close();
+      },
+    };
   }
 
   async publish(relays: string[], event: Event, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<void> {
-    const publishes = this.pool.publish(this.track(relays), event);
+    const publishes = this.pool.publish(relays, event, { maxWait: timeoutMs });
     await Promise.race([
       Promise.allSettled(publishes),
       new Promise((resolve) => setTimeout(resolve, timeoutMs)),
     ]);
   }
 
-  /** `pool.close([])` closes nothing — it takes the relays to close, not a flag. */
   dispose(): void {
-    this.pool.close([...this.touched]);
-    this.touched.clear();
+    this.pool.destroy();
   }
 }
 ```
@@ -2980,6 +2982,31 @@ git commit -m "test(kanban-sdk): kanbanstr interop suite via ported parsers"
 ```
 
 ---
+
+## Execution log — 2026-07-28
+
+Executed in a worktree at `../common-packages-kanban` on branch `kanban-sdk`, based
+on `origin/main`. **All 10 tasks complete. 95 tests passing, typecheck and build
+clean.**
+
+One plan error found and corrected during Task 1, recorded here so Plans 2 and 3
+inherit the fix rather than the bug. The plan's `SimplePoolRuntime` was written
+against a `SimplePool` API that does not exist in **nostr-tools 2.23.5**:
+
+| Plan assumed | Actual |
+|---|---|
+| `subscribeMany(relays, Filter[], params)` | `subscribeMany(relays, filter: Filter, params)` — **one** filter |
+| `pool.close([])` disposes | `close(relays: string[])` closes named relays; `destroy()` is the real dispose |
+| `querySync` must be hand-rolled over `subscribeMany` | `pool.querySync(relays, filter, { maxWait })` already exists |
+
+The code block above is the corrected version now in the repository. The
+`NostrRuntime` contract still takes `Filter[]`, unchanged, so it stays
+interchangeable with `calendar-sdk` — the adapter fans out one subscription per
+filter and fires `onEose` when the last drains.
+
+Test counts came out slightly above the plan's estimates (Task 7: 8 not 7,
+Task 8: 11 not 10); the plan's per-task counts were approximations, the tests
+themselves are as written.
 
 ## Done when
 
